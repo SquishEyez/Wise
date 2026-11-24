@@ -55,14 +55,47 @@ const topKeyHolders = [...keyHolders].sort((a, b) => (b[1] > a[1] ? 1 : -1)).sli
 
 // ---------------------------------------------------------------- 2. each script
 const ranked = [...scripts.values()].sort((a, b) => b.skulls - a.skulls || (b.work > a.work ? 1 : -1));
-const deep = ranked.slice(0, 40);
-const info = await batched("/script_info", "_script_hashes", deep.map((s) => s.hash), 20);
+log("script_info for all", ranked.length);
+const info = await batched("/script_info", "_script_hashes", ranked.map((s) => s.hash), 50);
 const infoBy = Object.fromEntries(info.map((i) => [i.script_hash, i]));
+
+// Native scripts: group by template (key hashes -> K#, slots -> S) so per-user copies of one design cluster together.
+const templates = {};
+const SLOT0 = 1596059091, SLOT0_SLOT = 4492800; // Shelley start: slot 4492800 at 2020-07-29T21:44:51Z
+const slotTime = (slot) => new Date((SLOT0 + (slot - SLOT0_SLOT)) * 1000).toISOString();
+for (const sc of ranked) {
+  const i = infoBy[sc.hash];
+  sc.type = i?.type ?? null;
+  if (!i || i.type !== "timelock" && i.type !== "multisig") continue;
+  sc.native = i.value;
+  const keys = [], slots = [];
+  const norm = JSON.stringify(i.value, (kk, v) => {
+    if (kk === "keyHash") { keys.push(v); return "K"; }
+    if (kk === "slot") { slots.push(v); return "S"; }
+    return v;
+  });
+  sc.keys = keys; sc.slots = slots.map((x) => ({ slot: x, time: slotTime(x) }));
+  const t = (templates[norm] ??= { template: i.value && norm, count: 0, skulls: 0, work: 0n, keyFreq: {}, slotRange: [Infinity, -Infinity], examples: [] });
+  t.count++; t.skulls += sc.skulls; t.work += sc.work;
+  for (const kh of keys) t.keyFreq[kh] = (t.keyFreq[kh] ?? 0) + 1;
+  for (const x of slots) { t.slotRange[0] = Math.min(t.slotRange[0], x); t.slotRange[1] = Math.max(t.slotRange[1], x); }
+  if (t.examples.length < 5) t.examples.push({ hash: sc.hash, address: sc.sampleAddress, skulls: sc.skulls, work: sc.work, native: i.value });
+}
+for (const t of Object.values(templates)) {
+  t.slotRange = t.slotRange.map((x) => (Number.isFinite(x) ? { slot: x, time: slotTime(x) } : null));
+  t.sharedKeys = Object.entries(t.keyFreq).filter(([, n]) => n > 1).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  delete t.keyFreq;
+}
+log("native templates:", Object.keys(templates).length);
+
+const plutus = ranked.filter((sc) => sc.type && sc.type.startsWith("plutus"));
+const natives = ranked.filter((sc) => sc.native);
+const deep = [...plutus.slice(0, 25), ...natives.slice(0, 3)];
 
 for (const s of deep) {
   log("script", s.hash.slice(0, 12), "skulls", s.skulls, "WORK", s.work.toString());
   const i = infoBy[s.hash] ?? {};
-  s.type = i.type ?? null; s.size = i.size ?? null; s.creation_tx = i.creation_tx_hash ?? null;
+  s.size = i.size ?? null; s.creation_tx = i.creation_tx_hash ?? null;
   // current UTxOs that hold WD assets
   const utxos = await k("/credential_utxos", { _payment_credentials: [s.hash], _extended: true }).catch((e) => (log("  utxos failed", e.message), []));
   const wd = utxos.filter((u) => (u.asset_list ?? []).some((a) => a.policy_id === SKULL || (a.policy_id === WORK && a.asset_name === WORK_NAME)));
@@ -130,14 +163,18 @@ const report = ser({
   totals: { workSupplySeen: workTotal, workInScripts, workHolders: workHolders.size, skullRows: skullRows.length, skullHolders: skullHolders.size, skullsInScripts, byron: byon },
   policies, workMinting: mintInfo.map((t) => ({ tx: t.tx_hash, time: t.tx_timestamp, inputs: (t.inputs ?? []).map((i) => i.payment_addr?.bech32), outputs: (t.outputs ?? []).map((o) => ({ addr: o.payment_addr?.bech32, assets: (o.asset_list ?? []).filter((a) => a.policy_id === WORK).map((a) => a.quantity) })), metadata: t.metadata })),
   topKeyHolders,
+  scriptTypes: ranked.reduce((m, sc) => ((m[sc.type ?? "unknown"] = (m[sc.type ?? "unknown"] ?? 0) + 1), m), {}),
+  nativeTemplates: Object.values(templates).sort((a, b) => b.skulls - a.skulls),
   scripts: deep.map((s) => ({ ...s, addresses: [...s.addresses].slice(0, 5), stakeKeys: s.stakeKeys.size })),
-  otherScripts: ranked.slice(40).map((s) => ({ hash: s.hash, work: s.work, skulls: s.skulls, sampleAddress: s.sampleAddress })),
+  allScripts: ranked.map((s) => ({ hash: s.hash, type: s.type, work: s.work, skulls: s.skulls, address: s.sampleAddress, keys: s.keys, slots: s.slots })),
 });
 writeFileSync(new URL("scan.json", OUT), JSON.stringify(report, null, 1));
 
 const md = [`# Working Dead chain scan — ${report.generated}`, "",
   `- $WORK seen: ${report.totals.workSupplySeen} across ${report.totals.workHolders} wallets; **${report.totals.workInScripts} in scripts**`,
-  `- Skulls: ${report.totals.skullRows} rows / ${report.totals.skullHolders} wallets; **${report.totals.skullsInScripts} in scripts**`, "",
+  `- Skulls: ${report.totals.skullRows} rows / ${report.totals.skullHolders} wallets; **${report.totals.skullsInScripts} in scripts**`,
+  `- Script types: ${JSON.stringify(report.scriptTypes)}`, "",
+  "## Native-script templates", ...report.nativeTemplates.map((t) => `- ×${t.count} scripts, ${t.skulls} skulls, ${t.work} WORK — slots ${t.slotRange[0]?.time ?? "-"} … ${t.slotRange[1]?.time ?? "-"} — shared keys ${JSON.stringify(t.sharedKeys)}\n  \`${t.template}\``), "",
   "| script | type | skulls | WORK | WD utxos / all | stake keys | txs | last seen | 674 msgs | redeemers | datum shapes |", "|---|---|---|---|---|---|---|---|---|---|---|",
   ...report.scripts.map((s) => `| \`${s.hash}\` | ${s.type} | ${s.skulls} | ${s.work} | ${s.wdUtxoCount}/${s.utxoCount} | ${s.stakeKeys} | ${s.txCount} | ${s.lastSeen ? new Date(s.lastSeen * 1000).toISOString().slice(0, 10) : ""} | ${[...new Set((s.sampleTxs ?? []).map((t) => t.msg674).filter(Boolean))].slice(0, 2).join(" / ").slice(0, 80)} | ${Object.entries(s.redeemers ?? {}).map(([a, n]) => `${a}×${n}`).join(" ").slice(0, 80)} | ${Object.entries(s.datumShapes ?? {}).map(([a, n]) => `${a}×${n}`).join(" ").slice(0, 100)} |`),
   "", "## Top key-address $WORK holders", ...report.topKeyHolders.map((h) => `- ${h.id}: ${h.work}`)].join("\n");

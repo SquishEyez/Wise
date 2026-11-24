@@ -1,21 +1,34 @@
 # Rescue mission: scan the chain for every contract holding Working Dead assets.
-# Runs on demand and whenever the scanner changes; results are kept as an artifact.
+# Runs on demand and whenever the scanner changes. Results are committed to the
+# `chain-data` branch (rescue/scan/out/), so every scan is kept and diffable.
 name: Chain scan
 on:
   workflow_dispatch:
   push:
     branches: [main]
     paths: ["rescue/scan/**"]
-permissions: { contents: read }
+permissions: { contents: write }
+concurrency: { group: chain-scan, cancel-in-progress: false }
 jobs:
   scan:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - run: node rescue/scan/scan.mjs
-      - uses: actions/upload-artifact@v4
+      - name: Commit results to chain-data branch
         if: always()
-        with: { name: chain-scan, path: rescue/scan/out/ }
+        run: |
+          set -e
+          cp -r rescue/scan/out /tmp/out
+          git config user.name "chain-scan bot"
+          git config user.email "actions@users.noreply.github.com"
+          git fetch origin chain-data:chain-data 2>/dev/null && git switch chain-data || git switch --orphan chain-data
+          git rm -rq --cached . 2>/dev/null || true
+          rm -rf ./* .github 2>/dev/null || true
+          cp -r /tmp/out/* .
+          git add -A
+          git commit -qm "scan $(date -u +%FT%TZ) from ${GITHUB_SHA::7}" || echo "nothing new"
+          git push origin chain-data
