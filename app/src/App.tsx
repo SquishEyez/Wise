@@ -1,0 +1,157 @@
+import { useEffect, useMemo, useState } from "react";
+import { KoiosClient } from "@wd/shared/koios";
+import { NETWORKS, parseWatchInput, summarize, short, type Net } from "@wd/shared/wd";
+import { connectWallet, proveOwnership, type Session } from "./wallet.ts";
+import { store } from "./env.ts";
+import type { Account, Ctx } from "./ctx.ts";
+import { ConfirmSheet, type Summary } from "./ui.tsx";
+import { Connect } from "./views/Connect.tsx";
+import { Home } from "./views/Home.tsx";
+import { Skulls } from "./views/Skulls.tsx";
+import { Work } from "./views/Work.tsx";
+import { Lookup } from "./views/Lookup.tsx";
+import { Wisdom } from "./views/Wisdom.tsx";
+import { More } from "./views/More.tsx";
+
+const TABS = [
+  ["home", "Home", "☠"],
+  ["skulls", "Skulls", "▦"],
+  ["work", "$WORK", "⚒"],
+  ["wisdom", "Wisdom", "✎"],
+  ["lookup", "Lookup", "⌕"],
+  ["more", "More", "≡"],
+] as const;
+type Tab = (typeof TABS)[number][0];
+
+export function App() {
+  const [net, setNet] = useState<Net>(((store.get("net") as Net) ?? "Mainnet"));
+  const koios = useMemo(() => new KoiosClient(net), [net]);
+  const [tab, setTab] = useState<Tab>("home");
+  const [session, setSession] = useState<Session | null>(null);
+  const [account, setAccount] = useState<Account | null>(null);
+  const [busy, setBusy] = useState("");
+  const [toasts, setToasts] = useState<{ id: number; msg: string }[]>([]);
+  const [confirm, setConfirm] = useState<Summary | null>(null);
+
+  const toast = (msg: string) => {
+    msg = msg.split(" └─")[0].split("\n")[0];
+    if (msg.length > 180) msg = msg.slice(0, 177) + "…";
+    const id = Date.now() + Math.random();
+    setToasts((t) => [...t, { id, msg }]);
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 6000);
+  };
+
+  async function load(label: string, addresses: string[], stake: string | null) {
+    setBusy("Raising the dead…");
+    try {
+      const { rows, lovelace } = await koios.holdings(addresses, stake);
+      const holdings = summarize(rows);
+      const skulls = holdings.skulls.length ? await koios.skulls(holdings.skulls) : [];
+      setAccount({ label, addresses, stake, lovelace, holdings, skulls });
+    } catch (e: any) {
+      toast("Couldn't load wallet: " + (e?.message ?? e));
+    } finally { setBusy(""); }
+  }
+
+  async function watch(raw: string) {
+    const t = parseWatchInput(raw);
+    if (!t) return;
+    setBusy("Looking…");
+    try {
+      const r = await koios.resolve(t);
+      store.set("watch", raw); store.set("wallet", null);
+      await load(r.label, r.addresses, r.stake);
+    } catch (e: any) { toast(e?.message ?? String(e)); setBusy(""); }
+  }
+
+  async function signIn(id: string, silent = false) {
+    setBusy("Opening wallet…");
+    try {
+      const s = await connectWallet(id, net);
+      setSession(s);
+      store.set("wallet", id); store.set("watch", null);
+      await load(s.address, [s.address], s.stake);
+      if (!silent) {
+        try {
+          const ok = await proveOwnership(s);
+          setSession({ ...s, verified: ok });
+          toast(ok ? "Signed in — wallet ownership proven" : "Signature didn't verify");
+        } catch { toast("Message not signed — you're connected but not verified"); }
+      }
+    } catch (e: any) {
+      toast(e?.info ?? e?.message ?? String(e)); setBusy("");
+    }
+  }
+
+  function signOut() {
+    setSession(null); setAccount(null); setTab("home");
+    store.set("wallet", null); store.set("watch", null);
+  }
+
+  // restore last session on start / network change
+  useEffect(() => {
+    setAccount(null); setSession(null);
+    const w = store.get("wallet"), v = store.get("watch");
+    if (w && (window as any).cardano?.[w]?.isEnabled) {
+      (window as any).cardano[w].isEnabled().then((on: boolean) => on && signIn(w, true)).catch(() => {});
+    } else if (v) watch(v);
+  }, [net]);
+
+  const changeNet = (n: Net) => { store.set("net", n); setNet(n); };
+
+  const ctx: Ctx | null = account && {
+    net, koios, account, session, toast,
+    confirm: setConfirm,
+    refresh: () => load(account.label, account.addresses, account.stake),
+  };
+
+  return (
+    <div className="app">
+      <header>
+        <div className="brand"><span className="skull">☠</span> WORKING DEAD <small>HUB</small></div>
+        <select className={"chip " + net.toLowerCase()} value={net} onChange={(e) => changeNet(e.target.value as Net)} aria-label="Network">
+          {NETWORKS.map((n) => <option key={n}>{n}</option>)}
+        </select>
+      </header>
+
+      <main>
+        {busy && <div className="busy">{busy}</div>}
+        {!ctx && !busy && <Connect net={net} onWallet={(id) => signIn(id)} onWatch={watch} />}
+        {ctx && (
+          <>
+            {tab === "home" && <Home c={ctx} go={(t) => setTab(t as Tab)} />}
+            {tab === "skulls" && <Skulls c={ctx} />}
+            {tab === "work" && <Work c={ctx} />}
+            {tab === "lookup" && <Lookup c={ctx} />}
+            {tab === "wisdom" && <Wisdom c={ctx} />}
+            {tab === "more" && <More c={ctx} signOut={signOut} />}
+          </>
+        )}
+      </main>
+
+      {ctx && (
+        <nav className="tabs">
+          {TABS.map(([id, label, icon]) => (
+            <button key={id} className={tab === id ? "on" : ""} onClick={() => setTab(id)}>
+              <span>{icon}</span>{label}
+            </button>
+          ))}
+        </nav>
+      )}
+
+      {confirm && (
+        <ConfirmSheet
+          s={confirm}
+          onClose={() => setConfirm(null)}
+          onDone={(hash) => {
+            setConfirm(null);
+            toast(`Sent ✓ ${short(hash, 8, 6)} — confirms in about a minute`);
+            setTimeout(() => ctx?.refresh(), 40_000);
+          }}
+        />
+      )}
+
+      <div className="toasts">{toasts.map((t) => <div key={t.id} className="toast">{t.msg}</div>)}</div>
+    </div>
+  );
+}

@@ -1,0 +1,9 @@
+node_modules/
+dist/
+onchain/build/
+.env.local
+*.skey
+android/keystore/
+android/dist/
+app/public/icon.png
+__pycache__/

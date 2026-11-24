@@ -1,0 +1,16 @@
+{
+  "name": "working-dead-dapp",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "shared",
+    "offchain",
+    "app"
+  ],
+  "scripts": {
+    "check": "bash scripts/check.sh",
+    "dev": "npm --workspace app run dev",
+    "test": "npm --workspace offchain test",
+    "apk": "npm --workspace app run build && python3 android/build.py"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "target": "ESNext", "module": "ESNext", "moduleResolution": "Bundler",
+    "jsx": "react-jsx", "strict": true, "skipLibCheck": true,
+    "resolveJsonModule": true, "allowImportingTsExtensions": true, "noEmit": true,
+    "types": ["vite/client"]
+  },
+  "include": ["src", "../shared"]
+}

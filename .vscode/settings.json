@@ -1,0 +1,1 @@
+{ "editor.formatOnSave": true, "[aiken]": { "editor.defaultFormatter": "txpipe.aiken" }, "files.exclude": { "**/node_modules": true, "onchain/build": true } }

@@ -1,0 +1,1 @@
+{ "folders": [ { "path": "onchain", "name": "⛓ on-chain (Aiken)" }, { "path": "shared", "name": "🔗 shared" }, { "path": "offchain", "name": "🧪 emulator tests" }, { "path": "app", "name": "💀 web app" }, { "path": ".", "name": "root" } ] }

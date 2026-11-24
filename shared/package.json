@@ -1,0 +1,11 @@
+{
+  "name": "@wd/shared",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./contracts": "./contracts.ts",
+    "./wd": "./wd.ts",
+    "./koios": "./koios.ts"
+  },
+  "dependencies": { "@lucid-evolution/lucid": "0.8.9" }
+}
