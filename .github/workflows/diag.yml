@@ -14,3 +14,8 @@ jobs:
           echo "== OPTIONS preflight POST account_assets"; curl -s -D - -o /dev/null -X OPTIONS -H "Origin: $O" -H "Access-Control-Request-Method: POST" -H "Access-Control-Request-Headers: accept,content-type" https://api.koios.rest/api/v1/account_assets | grep -iE "^HTTP|access-control" || true
           echo "== POST account_assets"; curl -s -D - -o /dev/null -H "Origin: $O" -H "content-type: application/json" -d '{"_stake_addresses":["stake1uxuwed2gdhpgufwnnlxvqdr0k3evpll0s6usz8mncyzqlrq66us8e"]}' https://api.koios.rest/api/v1/account_assets | grep -iE "^HTTP|access-control" || true
           echo "== OPTIONS preflight with authorization"; curl -s -D - -o /dev/null -X OPTIONS -H "Origin: $O" -H "Access-Control-Request-Method: GET" -H "Access-Control-Request-Headers: authorization" https://api.koios.rest/api/v1/tip | grep -iE "^HTTP|access-control" || true
+          echo "== Blockfrost preflight"; curl -s -D - -o /dev/null -X OPTIONS -H "Origin: $O" -H "Access-Control-Request-Method: GET" -H "Access-Control-Request-Headers: project_id" https://cardano-mainnet.blockfrost.io/api/v0/health | grep -iE "^HTTP|access-control" || true
+          echo "== Blockfrost GET (bad key)"; curl -s -D - -o /dev/null -H "Origin: $O" -H "project_id: mainnetXXXX" https://cardano-mainnet.blockfrost.io/api/v0/health | grep -iE "^HTTP|access-control" || true
+          echo "== Koios GET from localhost origin"; curl -s -D - -o /dev/null -H "Origin: https://localhost" https://api.koios.rest/api/v1/tip | grep -iE "^HTTP|access-control-allow" || true
+          echo "== Koios preprod GET"; curl -s -D - -o /dev/null -H "Origin: $O" https://preprod.koios.rest/api/v1/tip | grep -iE "^HTTP|access-control-allow" || true
+
