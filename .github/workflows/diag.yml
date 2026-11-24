@@ -1,0 +1,16 @@
+# One-off network diagnostics for the hub's data providers (CORS from a browser origin).
+name: Provider diagnostics
+on:
+  workflow_dispatch:
+  push: { branches: [main], paths: [".github/workflows/diag.yml"] }
+jobs:
+  cors:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          O="https://squisheyez.github.io"
+          echo "== GET tip with Origin"; curl -s -D - -o /dev/null -H "Origin: $O" https://api.koios.rest/api/v1/tip | grep -iE "^HTTP|access-control|server|cf-" || true
+          echo "== GET epoch_params"; curl -s -D - -o /dev/null -H "Origin: $O" "https://api.koios.rest/api/v1/epoch_params?limit=1" | grep -iE "^HTTP|access-control" || true
+          echo "== OPTIONS preflight POST account_assets"; curl -s -D - -o /dev/null -X OPTIONS -H "Origin: $O" -H "Access-Control-Request-Method: POST" -H "Access-Control-Request-Headers: accept,content-type" https://api.koios.rest/api/v1/account_assets | grep -iE "^HTTP|access-control" || true
+          echo "== POST account_assets"; curl -s -D - -o /dev/null -H "Origin: $O" -H "content-type: application/json" -d '{"_stake_addresses":["stake1uxuwed2gdhpgufwnnlxvqdr0k3evpll0s6usz8mncyzqlrq66us8e"]}' https://api.koios.rest/api/v1/account_assets | grep -iE "^HTTP|access-control" || true
+          echo "== OPTIONS preflight with authorization"; curl -s -D - -o /dev/null -X OPTIONS -H "Origin: $O" -H "Access-Control-Request-Method: GET" -H "Access-Control-Request-Headers: authorization" https://api.koios.rest/api/v1/tip | grep -iE "^HTTP|access-control" || true
