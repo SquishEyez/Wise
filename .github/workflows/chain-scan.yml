@@ -4,6 +4,8 @@
 name: Chain scan
 on:
   workflow_dispatch:
+    inputs:
+      job: { description: "vaults | holders | both", default: "vaults" }
   push:
     branches: [main]
     paths: ["rescue/scan/**"]
@@ -17,7 +19,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - run: node rescue/scan/scan.mjs
+      - run: npm install --prefix rescue/scan --no-audit --no-fund
+      - name: Vault rebuild
+        if: ${{ github.event_name == 'push' || inputs.job != 'holders' }}
+        run: node rescue/scan/vaults.mjs
+      - name: Holder / contract scan
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.job != 'vaults' }}
+        run: node rescue/scan/scan.mjs
       - name: Commit results to chain-data branch
         if: always()
         run: |
@@ -26,8 +34,7 @@ jobs:
           git config user.name "chain-scan bot"
           git config user.email "actions@users.noreply.github.com"
           git fetch origin chain-data:chain-data 2>/dev/null && git switch chain-data || git switch --orphan chain-data
-          git rm -rq --cached . 2>/dev/null || true
-          rm -rf ./* .github 2>/dev/null || true
+          rm -rf .github rescue app android shared offchain onchain scripts 2>/dev/null || true
           cp -r /tmp/out/* .
           git add -A
           git commit -qm "scan $(date -u +%FT%TZ) from ${GITHUB_SHA::7}" || echo "nothing new"
