@@ -1,5 +1,5 @@
 import type { Holdings, Net, Skull } from "@wd/shared/wd";
-import type { KoiosClient } from "@wd/shared/koios";
+import type { ChainData } from "@wd/shared/chain";
 import type { Session } from "./wallet.ts";
 import type { Summary } from "./ui.tsx";
 
@@ -14,7 +14,7 @@ export type Account = {
 
 export type Ctx = {
   net: Net;
-  koios: KoiosClient;
+  chain: ChainData;
   account: Account;
   session: Session | null; // null = watch-only
   confirm: (s: Summary) => void;

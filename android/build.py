@@ -50,6 +50,8 @@ def main():
     cap.setdefault("plugins", {})
     cap["plugins"]["SplashScreen"] = {"launchAutoHide": True, "backgroundColor": "#0c0c0a"}
     cap["plugins"]["StatusBar"] = {"style": "DARK", "backgroundColor": "#0c0c0a"}
+    # native HTTP for fetch/XHR: no browser CORS rules, so keyless Koios works in the app
+    cap["plugins"]["CapacitorHttp"] = {"enabled": True}
     json.dump(cap, open(capp, "w"), indent="\t")
 
     # 3. identity: package id, link schemes, label, version

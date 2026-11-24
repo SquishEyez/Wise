@@ -31,6 +31,7 @@ with zipfile.ZipFile(apk) as z:
     names = set(z.namelist())
     cap = json.loads(z.read("assets/capacitor.config.json"))
     check(cap["appId"] == pkg and cap["android"]["webContentsDebuggingEnabled"] is False, "capacitor config: our id, debugging off")
+    check(cap.get("plugins", {}).get("CapacitorHttp", {}).get("enabled") is True, "native HTTP on (Koios works without CORS)")
     check("assets/public/index.html" in names and any(n.endswith(".wasm") for n in names), "web app + wasm inside")
     html = z.read("assets/public/index.html").decode()
     check("Working Dead Hub" in html, "index.html is the hub")

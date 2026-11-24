@@ -1,7 +1,8 @@
 // Wallet access. Browser / wallet in-app browser: CIP-30 (window.cardano).
 // Android app: no injected wallet, so we hand off to VESPR/Eternl via CIP-158.
-import { Koios, Lucid, verifyData, getAddressDetails, fromText, type LucidEvolution } from "@lucid-evolution/lucid";
-import { KOIOS, type Net } from "@wd/shared/wd";
+import { Lucid, verifyData, getAddressDetails, fromText, type LucidEvolution } from "@lucid-evolution/lucid";
+import { lucidProvider } from "./source.ts";
+import type { Net } from "@wd/shared/wd";
 
 export type WalletInfo = { id: string; name: string; icon: string };
 
@@ -23,7 +24,7 @@ export async function connectWallet(id: string, net: Net): Promise<Session> {
   const api = await (window as any).cardano[id].enable();
   const nid = await api.getNetworkId();
   if (nid !== NET_ID[net]) throw new Error(`Wallet is on ${nid === 1 ? "Mainnet" : "a testnet"} — switch it to ${net} or change the network chip`);
-  const lucid = await Lucid(new Koios(KOIOS[net]), net);
+  const lucid = await Lucid(lucidProvider(net), net);
   lucid.selectWallet.fromAPI(api);
   const address = await lucid.wallet().address();
   const stake = (await lucid.wallet().rewardAddress()) ?? null;

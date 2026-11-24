@@ -1,7 +1,7 @@
 // Runs the Rescue scan for one wallet in the app: finds WD assets sitting in contracts
 // under the wallet's stake key and works out how each can be got back.
 import { getAddressDetails } from "@lucid-evolution/lucid";
-import { KoiosClient } from "@wd/shared/koios";
+import type { ChainData } from "@wd/shared/chain";
 import * as R from "@wd/shared/rescue";
 import registry from "./rescue-registry.json";
 
@@ -12,8 +12,8 @@ const scriptHashOf = (addr: string) => {
   try { const d = getAddressDetails(addr); return d.paymentCredential?.type === "Script" ? d.paymentCredential.hash : null; } catch { return null; }
 };
 
-export async function scanWallet(koios: KoiosClient, stake: string, walletAddresses: string[]): Promise<R.Found[]> {
-  const utxos = await koios.accountUtxos(stake);
+export async function scanWallet(chain: ChainData, stake: string, walletAddresses: string[]): Promise<R.Found[]> {
+  const utxos = await chain.accountUtxos(stake);
   const found = [...R.groupScriptHoldings(utxos, scriptHashOf).values()];
   const stakeHash = getAddressDetails(stake).stakeCredential?.hash;
   const payHashes = walletAddresses.map((a) => { try { return getAddressDetails(a).paymentCredential?.hash; } catch { return undefined; } });
@@ -28,7 +28,7 @@ export async function scanWallet(koios: KoiosClient, stake: string, walletAddres
     if (reg && R.nativeHash(reg.native) === f.scriptHash) native = reg.native;
     // 2. rebuild live from the lock messages
     if (!native) {
-      const msgs = await koios.scriptMessages(f.scriptHash).catch(() => []);
+      const msgs = await chain.scriptMessages(f.scriptHash, f.address).catch(() => []);
       lockMsgs = msgs.filter((m) => /locked until/i.test(m));
       const slots = msgs.map(R.slotFromLockMessage).filter((s): s is number => s !== null);
       native = slots.length ? R.rebuildLock(f.scriptHash, keys, slots) : null;

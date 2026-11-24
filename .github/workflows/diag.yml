@@ -2,7 +2,6 @@
 name: Provider diagnostics
 on:
   workflow_dispatch:
-  push: { branches: [main], paths: [".github/workflows/diag.yml"] }
 jobs:
   cors:
     runs-on: ubuntu-latest

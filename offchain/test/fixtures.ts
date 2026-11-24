@@ -107,3 +107,30 @@ export async function epochParams() {
     coins_per_utxo_size: String(p.coinsPerUtxoByte),
   }];
 }
+
+/** The same made-up wallet, served Blockfrost-style. */
+export function blockfrostFetch(log: string[] = []): typeof fetch {
+  const amt = (lovelace: string, assets: [string, string][] = []) => [{ unit: "lovelace", quantity: lovelace }, ...assets.map(([unit, quantity]) => ({ unit, quantity }))];
+  const S = (n: number) => SKULL_POLICY + skullNameHex(n);
+  return (async (url: string, init?: RequestInit) => {
+    const u = new URL(url);
+    const path = u.pathname.replace(/^\/api\/v0/, "");
+    log.push(path);
+    if ((init?.headers as any)?.project_id !== "mainnetTESTKEY") return new Response("{}", { status: 403 });
+    const page = Number(u.searchParams.get("page") ?? "1");
+    const json = (x: unknown) => new Response(JSON.stringify(x), { status: 200 });
+    if (path === `/addresses/${ADDR}`) return json({ address: ADDR, stake_address: STAKE, amount: amt("40000000", [[S(2498), "1"]]) });
+    if (path === `/accounts/${STAKE}`) return json({ controlled_amount: "47000000" });
+    if (path === `/accounts/${STAKE}/addresses/assets`) return json(page > 1 ? [] : [[S(2498), "1"], [S(1311), "1"], [S(1334), "1"], [WORK_POLICY + WORK_NAME_HEX, "2500"]].map(([unit, quantity]) => ({ unit, quantity })));
+    if (path === `/accounts/${STAKE}/addresses`) return json(page > 1 ? [] : [{ address: ADDR }, { address: VAULT_ADDR }, { address: ORDER_ADDR }]);
+    if (path === `/addresses/${VAULT_ADDR}/utxos`) return json(page > 1 ? [] : [{ tx_hash: "bb".repeat(32), output_index: 0, amount: amt("3000000", [[S(1311), "1"], [S(1334), "1"]]), data_hash: null, inline_datum: null }]);
+    if (path === `/addresses/${ORDER_ADDR}/utxos`) return json(page > 1 ? [] : [{ tx_hash: "cc".repeat(32), output_index: 1, amount: amt("4000000", [[WORK_POLICY + WORK_NAME_HEX, "2500"]]), data_hash: "ee".repeat(32), inline_datum: null }]);
+    if (path === `/addresses/${ADDR}/utxos`) throw new Error("should only fetch script addresses");
+    if (path === `/addresses/${VAULT_ADDR}/transactions`) return json([{ tx_hash: "dd".repeat(32) }]);
+    if (path === `/txs/${"dd".repeat(32)}/metadata`) return json([{ label: "674", json_metadata: { msg: [LOCK_MSG] } }]);
+    if (path.startsWith(`/assets/${HANDLE_POLICY}`)) return path.includes("000de140" + toHex("deadhead")) ? json([{ address: ADDR, quantity: "1" }]) : new Response("{}", { status: 404 });
+    const m = /^\/assets\/([0-9a-f]{56})([0-9a-f]*)$/.exec(path);
+    if (m) { const num = Number(Buffer.from(m[2], "hex").toString().replace("TheWorkingDead", "")); return json({ policy_id: m[1], asset_name: m[2], onchain_metadata: (meta(num) as any)["721"][m[1]]["TheWorkingDead" + num] }); }
+    return new Response("{}", { status: 404 });
+  }) as typeof fetch;
+}

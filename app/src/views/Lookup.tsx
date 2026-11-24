@@ -15,7 +15,7 @@ export function Lookup({ c }: { c: Ctx }) {
     setBusy(true); setErr("");
     try {
       const hex = skullNameHex(k);
-      const [[s], owner] = await Promise.all([c.koios.skulls([SKULL_POLICY + hex]), c.koios.skullOwner(hex)]);
+      const [[s], owner] = await Promise.all([c.chain.skulls([SKULL_POLICY + hex]), c.chain.skullOwner(hex)]);
       if (!s) throw new Error(`#${k} not found`);
       setFound({ s, owner: owner?.payment_address ?? null });
     } catch (e: any) {

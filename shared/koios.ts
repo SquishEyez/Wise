@@ -1,10 +1,12 @@
 // Minimal Koios client. Public tier, no key, CORS-enabled — works from a
 // browser, the Android WebView and Node. `fetch` is injectable for tests.
+import type { ChainData } from "./chain.ts";
 import { KOIOS, SKULL_POLICY, HANDLE_POLICY, handleNameHexes, skullFromAssetInfo, type AssetRow, type Net, type Skull, type WatchTarget } from "./wd.ts";
 
 type Fetch = typeof fetch;
 
-export class KoiosClient {
+export class KoiosClient implements ChainData {
+  readonly name = "Koios" as const;
   constructor(public net: Net, private f: Fetch = globalThis.fetch.bind(globalThis)) {}
 
   private async call<T>(path: string, body?: unknown): Promise<T> {
@@ -63,11 +65,12 @@ export class KoiosClient {
 
   /** Every UTxO under a stake key — includes script addresses that carry the wallet's stake key (staking vaults, listings, orders). */
   async accountUtxos(stake: string): Promise<any[]> {
+    // all of the account's UTxOs; callers keep the script-address ones
     return this.call<any[]>("/account_utxos", { _stake_addresses: [stake], _extended: true });
   }
 
   /** CIP-20 (674) messages ever attached to transactions touching a script. */
-  async scriptMessages(scriptHash: string, maxTxs = 100): Promise<string[]> {
+  async scriptMessages(scriptHash: string, _address?: string, maxTxs = 100): Promise<string[]> {
     const txs = await this.call<{ tx_hash: string }[]>("/credential_txs", { _payment_credentials: [scriptHash] });
     const hashes = txs.slice(0, maxTxs).map((t) => t.tx_hash);
     const out: string[] = [];

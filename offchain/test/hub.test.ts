@@ -100,3 +100,24 @@ test("bundled rescue registry: every vault script re-hashes to its address", asy
   for (const [hash, v] of entries) assert.equal(R.nativeHash(v.native), hash);
   assert.ok(reg["1a412e534a4c8395e6294d958690f0eceaa7a224e5b9109157a1ad78"], "includes a known mainnet vault");
 });
+
+test("Blockfrost backend gives the same answers as Koios (handle → holdings → skulls → rescue)", async () => {
+  const { BlockfrostClient, isScriptAddress } = await import("@wd/shared/blockfrost");
+  const { blockfrostFetch, VAULT_ADDR, ORDER_ADDR } = await import("./fixtures.ts");
+  const { scanWallet } = await import("../../app/src/rescue.ts");
+  assert.ok(isScriptAddress(VAULT_ADDR) && isScriptAddress(ORDER_ADDR) && !isScriptAddress(ADDR));
+  const bf = new BlockfrostClient("Mainnet", "mainnetTESTKEY", blockfrostFetch());
+  const r = await bf.resolve({ kind: "handle", value: "deadhead" });
+  assert.equal(r.stake, STAKE);
+  const { rows, lovelace } = await bf.holdings(r.addresses, r.stake);
+  assert.equal(lovelace, 47_000_000n);
+  const h = W.summarize(rows);
+  assert.equal(h.work, 2500n);
+  const skulls = await bf.skulls(h.skulls);
+  assert.deepEqual(skulls.map((s) => s.number), [1311, 1334, 2498]);
+  assert.equal(Object.fromEntries(skulls[0].traits)["Job · Tool"], "Shovel");
+  const found = await scanWallet(bf, STAKE, [ADDR]);
+  assert.deepEqual(found.map((f) => f.kind), ["anvil-vault", "dex-order"]);
+  assert.deepEqual(found[0].skulls, [1311, 1334]);
+  await assert.rejects(new BlockfrostClient("Mainnet", "bad", blockfrostFetch()).holdings([], STAKE), /rejected the project key/);
+});

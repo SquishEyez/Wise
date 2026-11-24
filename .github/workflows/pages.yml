@@ -19,6 +19,13 @@ jobs:
       - run: pip install pillow
       - run: npm ci
       - run: npm --workspace app run build
+        env:
+          # Free key from blockfrost.io (Mainnet project) saved as a repo secret named BLOCKFROST_KEY.
+          # Needed because Koios mainnet answers are blocked inside browsers.
+          VITE_BLOCKFROST_KEY: ${{ secrets.BLOCKFROST_KEY }}
+      - name: Warn if the site has no data provider
+        env: { KEY: "${{ secrets.BLOCKFROST_KEY }}" }
+        run: '[ -n "$KEY" ] || echo "::warning::No BLOCKFROST_KEY secret, so the published hub cannot read the chain in browsers."' 
       - uses: actions/upload-pages-artifact@v3
         with: { path: app/dist }
   deploy:

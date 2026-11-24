@@ -16,7 +16,7 @@ export function SendForm({ c, unit, label, fixedQty, max, onSent }: {
   async function review() {
     setErr("");
     try {
-      const r = await c.koios.resolve(target!);
+      const r = await c.chain.resolve(target!);
       const dest = r.addresses[0];
       c.confirm({
         title: `Send ${label}`,

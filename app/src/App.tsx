@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { KoiosClient } from "@wd/shared/koios";
+import { chainFor, browserBlocked } from "./source.ts";
+import { explainFetchError } from "@wd/shared/chain";
 import { NETWORKS, parseWatchInput, summarize, short, type Net } from "@wd/shared/wd";
 import { connectWallet, proveOwnership, type Session } from "./wallet.ts";
 import { store } from "./env.ts";
@@ -26,7 +27,7 @@ type Tab = (typeof TABS)[number][0];
 
 export function App() {
   const [net, setNet] = useState<Net>(((store.get("net") as Net) ?? "Mainnet"));
-  const koios = useMemo(() => new KoiosClient(net), [net]);
+  const chain = useMemo(() => chainFor(net), [net]);
   const [tab, setTab] = useState<Tab>("home");
   const [session, setSession] = useState<Session | null>(null);
   const [account, setAccount] = useState<Account | null>(null);
@@ -38,8 +39,8 @@ export function App() {
   async function runRescue(acc = account) {
     if (!acc?.stake || net !== "Mainnet") return;
     setRescue((r) => ({ ...r, status: "scanning" }));
-    try { setRescue({ status: "done", found: await scanWallet(koios, acc.stake, acc.addresses) }); }
-    catch (e: any) { setRescue({ status: "error", found: [], error: "Rescue scan failed: " + (e?.message ?? e) }); }
+    try { setRescue({ status: "done", found: await scanWallet(chain, acc.stake, acc.addresses) }); }
+    catch (e: any) { setRescue({ status: "error", found: [], error: "Rescue scan failed: " + explainFetchError(e, chain.name) }); }
   }
   useEffect(() => { setRescue({ status: "idle", found: [] }); if (account) runRescue(account); }, [account?.stake, net]);
 
@@ -54,12 +55,12 @@ export function App() {
   async function load(label: string, addresses: string[], stake: string | null) {
     setBusy("Raising the dead…");
     try {
-      const { rows, lovelace } = await koios.holdings(addresses, stake);
+      const { rows, lovelace } = await chain.holdings(addresses, stake);
       const holdings = summarize(rows);
-      const skulls = holdings.skulls.length ? await koios.skulls(holdings.skulls) : [];
+      const skulls = holdings.skulls.length ? await chain.skulls(holdings.skulls) : [];
       setAccount({ label, addresses, stake, lovelace, holdings, skulls });
     } catch (e: any) {
-      toast("Couldn't load wallet: " + (e?.message ?? e));
+      toast("Couldn't load wallet: " + explainFetchError(e, chain.name));
     } finally { setBusy(""); }
   }
 
@@ -68,10 +69,10 @@ export function App() {
     if (!t) return;
     setBusy("Looking…");
     try {
-      const r = await koios.resolve(t);
+      const r = await chain.resolve(t);
       store.set("watch", raw); store.set("wallet", null);
       await load(r.label, r.addresses, r.stake);
-    } catch (e: any) { toast(e?.message ?? String(e)); setBusy(""); }
+    } catch (e: any) { toast(explainFetchError(e, chain.name)); setBusy(""); }
   }
 
   async function signIn(id: string, silent = false) {
@@ -89,7 +90,7 @@ export function App() {
         } catch { toast("Message not signed — you're connected but not verified"); }
       }
     } catch (e: any) {
-      toast(e?.info ?? e?.message ?? String(e)); setBusy("");
+      toast(e?.info ?? explainFetchError(e, chain.name)); setBusy("");
     }
   }
 
@@ -110,7 +111,7 @@ export function App() {
   const changeNet = (n: Net) => { store.set("net", n); setNet(n); };
 
   const ctx: Ctx | null = account && {
-    net, koios, account, session, toast,
+    net, chain, account, session, toast,
     confirm: setConfirm,
     locked: new Set(rescue.found.flatMap((f) => f.skulls)),
     refresh: () => load(account.label, account.addresses, account.stake),
@@ -127,6 +128,9 @@ export function App() {
 
       <main>
         {busy && <div className="busy">{busy}</div>}
+        {browserBlocked(net) && (
+          <section className="card"><p className="warn">This build of the website has no Blockfrost key for {net}, and the keyless provider (Koios) is blocked inside browsers, so it can't read the chain. Use the Android app, or rebuild the site with a key.</p></section>
+        )}
         {!ctx && !busy && <Connect net={net} onWallet={(id) => signIn(id)} onWatch={watch} />}
         {ctx && (
           <>
