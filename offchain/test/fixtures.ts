@@ -1,8 +1,17 @@
 // Koios-shaped fixtures (field names from the Koios v1 OpenAPI spec).
+import { credentialToAddress, credentialToRewardAddress, validatorToAddress } from "@lucid-evolution/lucid";
 import { SKULL_POLICY, WORK_POLICY, WORK_NAME_HEX, HANDLE_POLICY, skullNameHex, toHex } from "@wd/shared/wd";
+import { anvilLock, nativeScript } from "@wd/shared/rescue";
 
-export const ADDR = "addr1qx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer3n0d3vllmyqwsx5wktcd8cc3sq835lu7drv2xwl2wywfgse35a3x";
-export const STAKE = "stake1u9ylzsgxaa6xctf4juup682ar3juj85n8tx3hthnljg47zctvm3rc";
+// a made-up mainnet wallet (real, valid encodings)
+export const PAY_KEY = "11".repeat(28), STAKE_KEY = "22".repeat(28);
+export const ADDR = credentialToAddress("Mainnet", { type: "Key", hash: PAY_KEY }, { type: "Key", hash: STAKE_KEY });
+export const STAKE = credentialToRewardAddress("Mainnet", { type: "Key", hash: STAKE_KEY });
+// its Anvil staking vault (unlock time comes from the lock tx message) and an open Minswap order
+export const LOCK_MSG = "Staking Contract Assets locked until Sun, 03 Sep 2023 00:49:53 GMT.";
+export const VAULT_LOCK = anvilLock(STAKE_KEY, 102135902);
+export const VAULT_ADDR = validatorToAddress("Mainnet", nativeScript(VAULT_LOCK), { type: "Key", hash: STAKE_KEY });
+export const ORDER_ADDR = credentialToAddress("Mainnet", { type: "Script", hash: "c3e28c36c3447315ba5a56f33da6a6ddc1770a876a8d9f0cb3a97c4c" }, { type: "Key", hash: STAKE_KEY });
 
 export const meta = (n: number, extra: Record<string, unknown> = {}) => ({
   "721": {
@@ -38,9 +47,26 @@ export function koiosFetch(log: string[] = []): typeof fetch {
         out = [
           { stake_address: STAKE, policy_id: SKULL_POLICY, asset_name: skullNameHex(2498), quantity: "1" },
           { stake_address: STAKE, policy_id: SKULL_POLICY, asset_name: skullNameHex(131), quantity: "1" },
+          { stake_address: STAKE, policy_id: SKULL_POLICY, asset_name: skullNameHex(1311), quantity: "1" },
+          { stake_address: STAKE, policy_id: SKULL_POLICY, asset_name: skullNameHex(1334), quantity: "1" },
           { stake_address: STAKE, policy_id: WORK_POLICY, asset_name: WORK_NAME_HEX, quantity: "68085" },
           { stake_address: STAKE, policy_id: "ab".repeat(28), asset_name: "00", quantity: "5" },
         ];
+        break;
+      case "/account_utxos": {
+        const a = (policy_id: string, asset_name: string, quantity: string) => ({ policy_id, asset_name, quantity });
+        out = [
+          { tx_hash: "aa".repeat(32), tx_index: 0, address: ADDR, value: "40000000", asset_list: [a(SKULL_POLICY, skullNameHex(2498), "1")] },
+          { tx_hash: "bb".repeat(32), tx_index: 0, address: VAULT_ADDR, value: "3000000", asset_list: [a(SKULL_POLICY, skullNameHex(1311), "1"), a(SKULL_POLICY, skullNameHex(1334), "1")] },
+          { tx_hash: "cc".repeat(32), tx_index: 1, address: ORDER_ADDR, value: "4000000", asset_list: [a(WORK_POLICY, WORK_NAME_HEX, "2500")] },
+        ];
+        break;
+      }
+      case "/credential_txs":
+        out = [{ tx_hash: "dd".repeat(32), block_time: 1693702230 }];
+        break;
+      case "/tx_metadata":
+        out = [{ tx_hash: "dd".repeat(32), metadata: { "674": { msg: [LOCK_MSG] } } }];
         break;
       case "/asset_info":
         out = body._asset_list.map(([p, n]: string[]) => {

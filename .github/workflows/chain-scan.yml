@@ -5,7 +5,7 @@ name: Chain scan
 on:
   workflow_dispatch:
     inputs:
-      job: { description: "vaults | holders | both", default: "vaults" }
+      job: { description: "vaults | holders | both | live", default: "vaults" }
   push:
     branches: [main]
     paths: ["rescue/scan/**"]
@@ -20,14 +20,17 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - run: npm install --prefix rescue/scan --no-audit --no-fund
+      - name: Live check (app's Rescue scan on real stakers)
+        if: ${{ github.event_name == 'push' || inputs.job == 'live' }}
+        run: npm ci --no-audit --no-fund && npx tsx rescue/scan/live-check.mts
       - name: Vault rebuild
-        if: ${{ github.event_name == 'push' || inputs.job != 'holders' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && (inputs.job == 'vaults' || inputs.job == 'both') }}
         run: node rescue/scan/vaults.mjs
       - name: Holder / contract scan
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.job != 'vaults' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && (inputs.job == 'holders' || inputs.job == 'both') }}
         run: node rescue/scan/scan.mjs
       - name: Commit results to chain-data branch
-        if: always()
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.job != 'live' }}
         run: |
           set -e
           cp -r rescue/scan/out /tmp/out

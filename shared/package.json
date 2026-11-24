@@ -5,7 +5,10 @@
   "exports": {
     "./contracts": "./contracts.ts",
     "./wd": "./wd.ts",
-    "./koios": "./koios.ts"
+    "./koios": "./koios.ts",
+    "./rescue": "./rescue.ts"
   },
-  "dependencies": { "@lucid-evolution/lucid": "0.8.9" }
+  "dependencies": {
+    "@lucid-evolution/lucid": "0.8.9"
+  }
 }

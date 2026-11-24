@@ -6,9 +6,10 @@ A free wallet companion for **The Working Dead**, modelled on Antelope Hub but f
 
 - **Sign in with your own wallet** (VESPR, Eternl, Lace and others). The wallet signs a one-off message to prove it's yours. That's free and moves nothing.
 - **Watch any wallet** by address, stake address or $handle, without signing in.
+- **Rescue**: finds skulls and $WORK stuck in the old Anvil staking vaults (4,000+ skulls across 578 vaults), listings and swap orders, and recovers vault contents with one signature. See [RESCUE.md](RESCUE.md).
 - **Skulls**: your Genesis skulls with pictures and traits. You can also send one.
 - **$WORK**: your balance, sending, and links to Minswap and the explorer.
-- **Lookup**: any skull #1 to #6,666, with its traits and current holder.
+- **Lookup** (Skulls tab): any skull #1 to #6,666, with its traits and current holder.
 - **Contracts** (Preview/Preprod only for now): the crypt vault and course badges.
 - **Wisdom**: the Wisdom. learn-to-earn platform (wisdom.courses): courses, teaching, docs.
 - **Official links**: every platform, marketplace and channel from the Discord.

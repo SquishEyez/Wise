@@ -9,7 +9,8 @@ import { Connect } from "./views/Connect.tsx";
 import { Home } from "./views/Home.tsx";
 import { Skulls } from "./views/Skulls.tsx";
 import { Work } from "./views/Work.tsx";
-import { Lookup } from "./views/Lookup.tsx";
+import { Rescue, type RescueState } from "./views/Rescue.tsx";
+import { scanWallet } from "./rescue.ts";
 import { Wisdom } from "./views/Wisdom.tsx";
 import { More } from "./views/More.tsx";
 
@@ -17,8 +18,8 @@ const TABS = [
   ["home", "Home", "☠"],
   ["skulls", "Skulls", "▦"],
   ["work", "$WORK", "⚒"],
+  ["rescue", "Rescue", "⛏"],
   ["wisdom", "Wisdom", "✎"],
-  ["lookup", "Lookup", "⌕"],
   ["more", "More", "≡"],
 ] as const;
 type Tab = (typeof TABS)[number][0];
@@ -32,6 +33,15 @@ export function App() {
   const [busy, setBusy] = useState("");
   const [toasts, setToasts] = useState<{ id: number; msg: string }[]>([]);
   const [confirm, setConfirm] = useState<Summary | null>(null);
+  const [rescue, setRescue] = useState<RescueState>({ status: "idle", found: [] });
+
+  async function runRescue(acc = account) {
+    if (!acc?.stake || net !== "Mainnet") return;
+    setRescue((r) => ({ ...r, status: "scanning" }));
+    try { setRescue({ status: "done", found: await scanWallet(koios, acc.stake, acc.addresses) }); }
+    catch (e: any) { setRescue({ status: "error", found: [], error: "Rescue scan failed: " + (e?.message ?? e) }); }
+  }
+  useEffect(() => { setRescue({ status: "idle", found: [] }); if (account) runRescue(account); }, [account?.stake, net]);
 
   const toast = (msg: string) => {
     msg = msg.split(" └─")[0].split("\n")[0];
@@ -102,6 +112,7 @@ export function App() {
   const ctx: Ctx | null = account && {
     net, koios, account, session, toast,
     confirm: setConfirm,
+    locked: new Set(rescue.found.flatMap((f) => f.skulls)),
     refresh: () => load(account.label, account.addresses, account.stake),
   };
 
@@ -119,10 +130,10 @@ export function App() {
         {!ctx && !busy && <Connect net={net} onWallet={(id) => signIn(id)} onWatch={watch} />}
         {ctx && (
           <>
-            {tab === "home" && <Home c={ctx} go={(t) => setTab(t as Tab)} />}
+            {tab === "home" && <Home c={ctx} go={(t) => setTab(t as Tab)} stuck={rescue.found} />}
             {tab === "skulls" && <Skulls c={ctx} />}
             {tab === "work" && <Work c={ctx} />}
-            {tab === "lookup" && <Lookup c={ctx} />}
+            {tab === "rescue" && <Rescue c={ctx} state={rescue} rescan={runRescue} />}
             {tab === "wisdom" && <Wisdom c={ctx} />}
             {tab === "more" && <More c={ctx} signOut={signOut} />}
           </>

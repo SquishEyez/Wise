@@ -1,8 +1,9 @@
 import { fmtAda, short } from "@wd/shared/wd";
+import { assetLabel, type Found } from "@wd/shared/rescue";
 import type { Ctx } from "../ctx.ts";
 import { IpfsImg, Stat } from "../ui.tsx";
 
-export function Home({ c, go }: { c: Ctx; go: (tab: string) => void }) {
+export function Home({ c, go, stuck = [] }: { c: Ctx; go: (tab: string) => void; stuck?: Found[] }) {
   const { account: a, session } = c;
   const face = a.skulls[0];
   return (
@@ -18,9 +19,15 @@ export function Home({ c, go }: { c: Ctx; go: (tab: string) => void }) {
         </div>
       </section>
 
+      {stuck.length > 0 && (
+        <button className="banner" onClick={() => go("rescue")}>
+          <b>⛏ Rescue:</b> {stuck.map(assetLabel).filter(Boolean).slice(0, 3).join(", ")} stuck in {stuck.length} old contract{stuck.length > 1 ? "s" : ""} →
+        </button>
+      )}
+
       <div className="stats">
         <button className="stat-btn" onClick={() => go("skulls")}>
-          <Stat label="Skulls" value={a.holdings.skulls.length} sub="Genesis collection" />
+          <Stat label="Skulls" value={a.holdings.skulls.length} sub={stuck.some((f) => f.skulls.length) ? "incl. locked ones" : "Genesis collection"} />
         </button>
         <button className="stat-btn" onClick={() => go("work")}>
           <Stat label="$WORK" value={a.holdings.work.toLocaleString("en-GB")} sub="utility token" />

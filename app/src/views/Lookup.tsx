@@ -26,7 +26,7 @@ export function Lookup({ c }: { c: Ctx }) {
   if (c.net !== "Mainnet") return <section className="card"><p>The collection lives on Mainnet. Switch the network chip to look skulls up.</p></section>;
   return (
     <section className="card">
-      <h2>Find a skull</h2>
+      <h2>Find any skull</h2>
       <form className="row" onSubmit={(e) => { e.preventDefault(); if (ok) look(); }}>
         <input inputMode="numeric" placeholder={`1 – ${SKULL_COUNT}`} value={n} onChange={(e) => setN(e.target.value.replace(/\D/g, ""))} aria-label="Skull number" />
         <button disabled={!ok || busy}>{busy ? "…" : "Look up"}</button>

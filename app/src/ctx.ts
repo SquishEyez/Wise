@@ -20,4 +20,6 @@ export type Ctx = {
   confirm: (s: Summary) => void;
   toast: (msg: string) => void;
   refresh: () => void;
+  /** skull numbers sitting in contracts (from Rescue) — not spendable from the wallet */
+  locked: Set<number>;
 };

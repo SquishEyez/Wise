@@ -61,6 +61,27 @@ export class KoiosClient {
     return out.sort((a, b) => (a.number ?? 1e9) - (b.number ?? 1e9));
   }
 
+  /** Every UTxO under a stake key — includes script addresses that carry the wallet's stake key (staking vaults, listings, orders). */
+  async accountUtxos(stake: string): Promise<any[]> {
+    return this.call<any[]>("/account_utxos", { _stake_addresses: [stake], _extended: true });
+  }
+
+  /** CIP-20 (674) messages ever attached to transactions touching a script. */
+  async scriptMessages(scriptHash: string, maxTxs = 100): Promise<string[]> {
+    const txs = await this.call<{ tx_hash: string }[]>("/credential_txs", { _payment_credentials: [scriptHash] });
+    const hashes = txs.slice(0, maxTxs).map((t) => t.tx_hash);
+    const out: string[] = [];
+    for (let i = 0; i < hashes.length; i += 50) {
+      const meta = await this.call<{ metadata: any }[]>("/tx_metadata", { _tx_hashes: hashes.slice(i, i + 50) });
+      for (const m of meta) {
+        const raw = m.metadata?.["674"]?.msg;
+        const text = Array.isArray(raw) ? raw.join("") : raw;
+        if (typeof text === "string") out.push(text);
+      }
+    }
+    return out;
+  }
+
   /** Who holds a given skull right now. */
   async skullOwner(nameHex: string): Promise<{ payment_address: string; stake_address: string | null } | null> {
     const rows = await this.call<{ payment_address: string; stake_address: string | null; quantity: string }[]>(
